@@ -1,0 +1,9 @@
+#executavel que foi gerado
+tron
+
+#pasta com os objetos gerados
+obj/
+
+#arquivos temporarios do vim
+*.swp
+*.swo
