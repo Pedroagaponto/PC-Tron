@@ -1,16 +1,19 @@
+CC = clang
+
 SDIR = src
 IDIR = include
-CC = clang
-CFLAGS = -I$(IDIR) -Wall -Wextra -g
-
 ODIR = obj
 
-LIBS = -lncurses
-
-_OBJ = main.o 
+_OBJ = main.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
+CFLAGS = -I$(IDIR) -Wall -Wextra -g
+LIBS = -lncurses
+
+all: tron
+
 $(ODIR)/%.o: $(SDIR)/%.c
+	@mkdir -p $(@D)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 tron: $(OBJ)
@@ -19,4 +22,4 @@ tron: $(OBJ)
 .PHONY: clean
 
 clean:
-	rm -f $(ODIR)/*.o *~ core $(INCDIR)/*~ 
+	rm -f $(ODIR)/*.o core
