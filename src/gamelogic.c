@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <ncurses.h>
 #include <pthread.h>
 #include <time.h>
@@ -47,9 +48,45 @@ const struct key_map mapping[] = {
 	{0, 0, 0}
 };
 
-void read_key()
+void* worm(void *num)
 {
-	int i, c;
+	int id = (int) num;
+	int row = f_logic.heads[id][0], col = f_logic.heads[id][1];
+
+	while (1)
+	{
+		sem_wait(&can_we_play[id]);
+		switch (directions[id])
+		{
+			case UP:
+				row++;
+			case DOWN:
+				row--;
+			case RIGHT:
+				col++;
+			case LEFT:
+				col--;
+		}
+		if ((row < 0) || (col < 0 ))
+		{
+			f_logic.status = -(id);
+		} else {
+			pthread_mutex_lock(&f_logic.l_field[row][col]);
+			if (f_logic.field[row][col] == 0)
+				f_logic.field[row][col] = id;
+			else
+				f_logic.status = -(id);
+			pthread_mutex_unlock(&f_logic.l_field[row][col]);
+
+			f_logic.heads[id][0] = row;
+			f_logic.heads[id][1] = col;
+		}
+	}
+}
+
+void* read_key(void *param)
+{
+	int i, c = (int) param;
 
 	while (1)
 	{
@@ -85,13 +122,38 @@ void check_draw()
 			   (f_logic.heads[i][1] == f_logic.heads[j][0]))
 				f_logic.status = -3;
 }
+void create_threads(pthread_t **threads)
+{
+	int i;
+
+	*threads = (pthread_t*) calloc(N_PLAYERS+1, sizeof(pthread_t));
+	pthread_barrier_init(&barrier, NULL, N_PLAYERS);
+	for (i = 0; i < N_PLAYERS; i++)
+		sem_init(&can_we_play[i], 1, 0);
+
+	for (i = 0; i < N_PLAYERS; i++)
+	{
+		if (pthread_create(threads[i], NULL, worm, (void *) i))
+		{
+			fprintf(stderr, "Cannot create thread worm %d\n", i);
+			exit(-1);
+		}
+	}
+	if (pthread_create(threads[i], NULL, read_key, NULL))
+	{
+		fprintf(stderr, "Cannot create thread read_key\n");
+		exit(-1);
+	}
+}
 
 void judge()
 {
 	int i;
 	struct timespec old_time, act_time;
+	pthread_t *threads = NULL;
 
 	clock_gettime(CLOCK_MONOTONIC, &old_time);
+	create_threads(&threads);
 
 	while(1)
 	{
@@ -102,47 +164,12 @@ void judge()
 
 		pthread_barrier_wait(&barrier);
 		check_draw();
+
 		//asks the interface to update
 
 		clock_gettime(CLOCK_MONOTONIC, &act_time);
 		usleep(1000 - diff(old_time, act_time));
 		old_time = act_time;
-	}
-}
-
-void worm(void *num)
-{
-	int id = (int) num;
-	int row = f_logic.heads[id][0], col = f_logic.heads[id][1];
-
-	while (1) 
-	{
-		sem_wait(&can_we_play[id]);
-		switch (directions[id])
-		{
-			case UP:
-				row++;
-			case DOWN:
-				row--;
-			case RIGHT:
-				col++;
-			case LEFT:
-				col--;
-		}
-		if ((row < 0) || (col < 0 ))
-		{
-			f_logic.status = -(id);
-		} else {
-			pthread_mutex_lock(&f_logic.l_field[row][col]);
-			if (f_logic.field[row][col] == 0)
-				f_logic.field[row][col] = id;
-			else
-				f_logic.status = -(id);
-			pthread_mutex_unlock(&f_logic.l_field[row][col]);
-
-			f_logic.heads[id][0] = row;
-			f_logic.heads[id][1] = col;
-		}
 	}
 }
 
