@@ -16,6 +16,8 @@ void refresh_resize();
 
 void refresh_exit();
 
+void refresh_allfield();
+
 void refresh_move();
 
 void refresh_oldheads();

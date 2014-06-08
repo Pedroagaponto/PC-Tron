@@ -112,7 +112,9 @@ void refresh_resize()
 	if ((term_row >= basis.size_row+2) &&
 	   (term_col >= basis.size_col+2))
 	{
+		pthread_mutex_lock(&mutex_sts);
 		basis.status = 0;
+		pthread_mutex_lock(&mutex_sts);
 		createfield_win();
 	}
 	else
@@ -143,7 +145,26 @@ void refresh_move()
 	refresh_oldheads();
 	pthread_mutex_unlock(&basis.l_heads);
 	wrefresh(game_field);
-	refresh();
+}
+
+void refresh_allfield()
+{
+	werase(game_field);
+	for (int i = 0; i < basis.size_row; i++)
+		for (int j = 0; j < basis.size_col; j++)
+		{
+			pthread_mutex_lock(&basis.l_field[i][j]);
+			if (basis.field[i][j] != 0)
+				mvwprintw(game_field, i, j, "o"); 
+			pthread_mutex_unlock(&basis.l_field[i][j]);
+
+		}
+	pthread_mutex_lock(&basis.l_heads);
+	mvwprintw(game_field, basis.heads[0][0], basis.heads[0][1],"O");
+	mvwprintw(game_field, basis.heads[1][0], basis.heads[1][1],"O");
+	pthread_mutex_unlock(&basis.l_heads);
+	box(game_field, 0 , 0);
+	wrefresh(game_field);
 }
 
 void refresh_oldheads()
@@ -162,19 +183,20 @@ void* refresh_game(void *arg)
 
 	createfield_win();
 	refresh_oldheads();
-	refresh_move();
 
 	/* Identifies possible changes on the terminal's dimension,
 adapting the game field when is possible or sending warnings when it
 doesn't */
 	while (1)
 	{
+		sem_post(&screen_ready);
 		sem_wait(&can_refresh);
 		pthread_mutex_lock(&mutex_sts);
+		//TODO switch
 		if (basis.status == STATUS_NORMAL)
 		{
 			pthread_mutex_unlock(&mutex_sts);
-			refresh_move();
+			refresh_allfield();
 		}
 		else if (basis.status == STATUS_RESIZE)
 		{
@@ -186,18 +208,10 @@ doesn't */
 			pthread_mutex_unlock(&mutex_sts);
 			refresh_exit();
 		}
-		else if (basis.status == STATUS_PLAYER_LOSE(1))
+		else if (basis.status == STATUS_GAME_OVER)
 		{
 			pthread_mutex_unlock(&mutex_sts);
-			createwin_win(2);
-			getch();
-			refresh_exit();
-		}
-		else if (basis.status == STATUS_PLAYER_LOSE(2))
-		{
-			pthread_mutex_unlock(&mutex_sts);
-			createwin_win(1);
-			getch();
+			createwin_win(basis.losers);
 			refresh_exit();
 		}
 		else

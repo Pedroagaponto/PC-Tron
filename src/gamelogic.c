@@ -3,12 +3,13 @@
 #include <pthread.h>
 #include <time.h>
 #include <unistd.h>
+#include <signal.h>
 #include <semaphore.h>
 #include "gamebasis.h"
 #include "gamewin.h"
 #include "gamelogic.h"
 
-char directions[N_PLAYERS] = {RIGHT, LEFT};
+sig_atomic_t directions[N_PLAYERS] = {RIGHT, LEFT};
 
 sem_t can_we_play[N_PLAYERS];
 
@@ -20,7 +21,7 @@ struct key_map
 {
 	int player;
 	int key;
-	char direction;
+	sig_atomic_t direction;
 };
 
 const struct key_map mapping[] = {
@@ -37,13 +38,19 @@ const struct key_map mapping[] = {
 
 void* worm(void *num)
 {
-	int id = (int) num;
+	int id = (int) num, move, old_move = 0;
 	int row = basis.heads[id][0], col = basis.heads[id][1];
 
 	while (1)
 	{
 		sem_wait(&can_we_play[id]);
-		switch (directions[id])
+		if (basis.status != STATUS_NORMAL)
+			continue;
+		
+		move = directions[id];
+		move = (move == -old_move) ? old_move : move;
+		old_move = move;
+		switch (move)
 		{
 			case UP:
 				row--;
@@ -62,7 +69,8 @@ void* worm(void *num)
 		   || (row >= basis.size_row-1) || (col >= basis.size_col-1))
 		{
 			pthread_mutex_lock(&mutex_sts);
-			basis.status = STATUS_PLAYER_LOSE(id+1);
+			basis.status = STATUS_GAME_OVER;
+			basis.losers = id+1;
 			pthread_mutex_unlock(&mutex_sts);
 		}
 		else
@@ -73,7 +81,8 @@ void* worm(void *num)
 			else
 			{
 				pthread_mutex_lock(&mutex_sts);
-				basis.status = STATUS_PLAYER_LOSE(id+1);
+				basis.status = STATUS_GAME_OVER;
+				basis.losers = (!basis.losers)? id+1 : DRAW;
 				pthread_mutex_unlock(&mutex_sts);
 			}
 			pthread_mutex_unlock(&basis.l_field[row][col]);
@@ -94,7 +103,6 @@ void* read_key(void *arg)
 
 	while (1)
 	{
-		refresh();
 		c = getch();
 		if (c == KEY_F(1))
 		{
@@ -116,8 +124,6 @@ void* read_key(void *arg)
 					mapping[i].direction;
 					break;
 				}
-		mvprintw(0, 0, "%c %c %d", directions[0], directions[1], basis.status);
-		refresh();
 	}
 
 	return arg;
@@ -160,13 +166,14 @@ void check_draw()
 	int i, j;
 
 	for (i = 0; i < N_PLAYERS; i++)
-		for (j = 0; j < N_PLAYERS; j++)
+		for (j = i + 1; j < N_PLAYERS; j++)
 			if ((i != j) &&
 			   (basis.heads[i][0] == basis.heads[j][0]) &&
 			   (basis.heads[i][1] == basis.heads[j][1]))
 			{
 				pthread_mutex_lock(&mutex_sts);
-				basis.status = STATUS_DRAW;
+				basis.status = STATUS_GAME_OVER;
+				basis.losers = DRAW;
 				pthread_mutex_unlock(&mutex_sts);
 			}
 }
@@ -174,9 +181,10 @@ void check_draw()
 void initvar_pthread()
 {
 	for (int i = 0; i < N_PLAYERS; i++)
-		sem_init(&can_we_play[i], 1, 0);
-	sem_init(&can_refresh, 1, 0);
-	sem_init(&can_continue, 1, 0);
+		sem_init(&can_we_play[i], 0, 0);
+	sem_init(&can_refresh, 0, 0);
+	sem_init(&can_continue, 0, 0);
+	sem_init(&screen_ready, 0, 0);
 	pthread_mutex_init(&mutex_sts, NULL);
 	pthread_mutex_init(&basis.l_heads, NULL);
 }
@@ -185,6 +193,16 @@ void create_threads()
 {
 	int i;
 
+	if (pthread_create(&threads[2], NULL, &refresh_game, NULL))
+	{
+		fprintf(stderr, "Cannot create thread refresh_game\n");
+		exit(-1);
+	}
+	if (pthread_create(&threads[3], NULL, &read_key, NULL))
+	{
+		fprintf(stderr, "Cannot create thread read_key\n");
+		exit(-1);
+	}
 	for (i = 0; i < N_PLAYERS; i++)
 	{
 		if (pthread_create(&threads[i], NULL, &worm, (void *) i))
@@ -192,16 +210,6 @@ void create_threads()
 			fprintf(stderr, "Cannot create thread worm %d\n", i);
 			exit(-1);
 		}
-	}
-	if (pthread_create(&threads[i], NULL, &read_key, NULL))
-	{
-		fprintf(stderr, "Cannot create thread read_key\n");
-		exit(-1);
-	}
-	if (pthread_create(&threads[i+1], NULL, &refresh_game, NULL))
-	{
-		fprintf(stderr, "Cannot create thread refresh_game\n");
-		exit(-1);
 	}
 }
 
@@ -216,6 +224,7 @@ void* judge(void *arg)
 
 	while(1)
 	{
+		sem_wait(&screen_ready);
 		for (i = 0; i < N_PLAYERS; i++)
 			sem_post(&can_we_play[i]);
 
@@ -226,6 +235,7 @@ void* judge(void *arg)
 		sem_post(&can_refresh);
 		clock_gettime(CLOCK_MONOTONIC, &act_time);
 		usleep(REFRESH_US - diff(old_time, act_time));
+		sem_post(&can_refresh);
 		old_time = act_time;
 	}
 	return arg;

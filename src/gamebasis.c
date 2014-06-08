@@ -7,6 +7,8 @@ struct game_basis basis;
 
 sem_t can_refresh;
 
+sem_t screen_ready;
+
 pthread_mutex_t mutex_sts;
 
 int term_row, term_col;
@@ -14,6 +16,7 @@ int term_row, term_col;
 int init_gamebasis()
 {
 	basis.status = STATUS_NORMAL;
+	basis.losers = 0;
 	getmaxyx(stdscr, term_row, term_col);
 	basis.size_row = term_row - 2;
 	basis.size_col = term_col - 2;
@@ -21,7 +24,6 @@ int init_gamebasis()
 		basis.size_col = basis.size_row * 2;
 	else
 		basis.size_row = basis.size_col / 2;
-
 
 	for (int i = 0; i < N_PLAYERS; i++)
 	{
