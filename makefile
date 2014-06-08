@@ -4,7 +4,7 @@ SDIR = src
 IDIR = include
 ODIR = obj
 
-_OBJ = main.o gamewin.o gamelogic.o
+_OBJ = main.o gamebasis.o gamewin.o gamelogic.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 CFLAGS = -I$(IDIR) -Wall -Wextra -g
@@ -17,7 +17,7 @@ $(ODIR)/%.o: $(SDIR)/%.c
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 tron: $(OBJ)
-	$(CC) -o $@ $^ $(CFLAGS) $(LIBS) 
+	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
 
 .PHONY: clean
 
