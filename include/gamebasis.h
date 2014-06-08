@@ -6,13 +6,15 @@
 #define RIGHT 'd'
 #define LEFT 'a'
 #define N_PLAYERS 2
+#define REFRESH_US 400000
 #define STATUS_RESIZE -10
 #define STATUS_ADV -11
 #define STATUS_SHORT_MSG -12
-#define	STATUS_OK 0
+#define STATUS_NORMAL 0
 #define STATUS_DRAW -3
 #define STATUS_PLAYER_LOSE(x) -x
 #define STATUS_EXIT -20
+#define STATUS_TOO_SMALL -25
 
 struct game_basis
 {
@@ -20,6 +22,7 @@ struct game_basis
 	int **field;
 	pthread_mutex_t **l_field;
 	int size_row, size_col;
+	pthread_mutex_t l_heads;
 	int heads[N_PLAYERS][2];
 };
 

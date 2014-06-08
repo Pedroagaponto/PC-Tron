@@ -8,6 +8,16 @@ void destroy_wins();
 
 void createwarn_win();
 
+void createwin_win(int winner);
+
 void createfield_win();
+
+void refresh_resize();
+
+void refresh_exit();
+
+void refresh_move();
+
+void refresh_oldheads();
 
 void* refresh_game(void *arg);

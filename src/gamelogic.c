@@ -46,41 +46,42 @@ void* worm(void *num)
 		switch (directions[id])
 		{
 			case UP:
-				row++;
-			case DOWN:
 				row--;
+				break;
+			case DOWN:
+				row++;
+				break;
 			case RIGHT:
 				col++;
+				break;
 			case LEFT:
 				col--;
+				break;
 		}
-		if ((row <= 0) || (col <= 0))
+		if ((row <= 0) || (col <= 0)
+		   || (row >= basis.size_row-1) || (col >= basis.size_col-1))
 		{
 			pthread_mutex_lock(&mutex_sts);
-			basis.status = STATUS_PLAYER_LOSE(id);
-			pthread_mutex_unlock(&mutex_sts);
-		}
-		else if ((row >= basis.size_row-1) || (col >= basis.size_col-1))
-		{
-			pthread_mutex_lock(&mutex_sts);
-			basis.status = STATUS_PLAYER_LOSE(id);
+			basis.status = STATUS_PLAYER_LOSE(id+1);
 			pthread_mutex_unlock(&mutex_sts);
 		}
 		else
 		{
 			pthread_mutex_lock(&basis.l_field[row][col]);
 			if (basis.field[row][col] == 0)
-				basis.field[row][col] = id;
+				basis.field[row][col] = id+1;
 			else
 			{
 				pthread_mutex_lock(&mutex_sts);
-				basis.status = STATUS_PLAYER_LOSE(id);
+				basis.status = STATUS_PLAYER_LOSE(id+1);
 				pthread_mutex_unlock(&mutex_sts);
 			}
 			pthread_mutex_unlock(&basis.l_field[row][col]);
 
+			pthread_mutex_lock(&basis.l_heads);
 			basis.heads[id][0] = row;
 			basis.heads[id][1] = col;
+			pthread_mutex_unlock(&basis.l_heads);
 		}
 		sem_post(&can_continue);
 	}
@@ -115,6 +116,7 @@ void* read_key(void *arg)
 					mapping[i].direction;
 					break;
 				}
+		mvprintw(0, 0, "%c %c %d", directions[0], directions[1], basis.status);
 		refresh();
 	}
 
@@ -124,6 +126,8 @@ void* read_key(void *arg)
 int diff (struct timespec start, struct timespec end)
 {
 	struct timespec temp;
+	int ret;
+
 	if ((end.tv_nsec - start.tv_nsec) < 0)
 	{
 		temp.tv_sec = end.tv_sec - start.tv_sec - 1;
@@ -135,7 +139,9 @@ int diff (struct timespec start, struct timespec end)
 		temp.tv_nsec = end.tv_nsec - start.tv_nsec;
 	}
 
-	return spec_to_usec(temp);
+	ret = spec_to_usec(temp);
+	
+	return (ret > REFRESH_US) ? REFRESH_US : ret;
 }
 
 int spec_to_usec(struct timespec time)
@@ -157,7 +163,7 @@ void check_draw()
 		for (j = 0; j < N_PLAYERS; j++)
 			if ((i != j) &&
 			   (basis.heads[i][0] == basis.heads[j][0]) &&
-			   (basis.heads[i][1] == basis.heads[j][0]))
+			   (basis.heads[i][1] == basis.heads[j][1]))
 			{
 				pthread_mutex_lock(&mutex_sts);
 				basis.status = STATUS_DRAW;
@@ -172,6 +178,7 @@ void initvar_pthread()
 	sem_init(&can_refresh, 1, 0);
 	sem_init(&can_continue, 1, 0);
 	pthread_mutex_init(&mutex_sts, NULL);
+	pthread_mutex_init(&basis.l_heads, NULL);
 }
 
 void create_threads()
@@ -198,12 +205,6 @@ void create_threads()
 	}
 }
 
-void join_threads()
-{
-	for (int i = 0; i < N_PLAYERS+2; i++)
-		pthread_join(threads[i], NULL);
-}
-
 void* judge(void *arg)
 {
 	int i;
@@ -212,20 +213,19 @@ void* judge(void *arg)
 	clock_gettime(CLOCK_MONOTONIC, &old_time);
 	initvar_pthread();
 	create_threads();
-	join_threads();
 
 	while(1)
 	{
 		for (i = 0; i < N_PLAYERS; i++)
 			sem_post(&can_we_play[i]);
 
-		check_draw();
 		for (i = 0; i < N_PLAYERS; i++)
 			sem_wait(&can_continue);
+
+		check_draw();
 		sem_post(&can_refresh);
-		refresh();
 		clock_gettime(CLOCK_MONOTONIC, &act_time);
-		usleep(1000 - diff(old_time, act_time));
+		usleep(REFRESH_US - diff(old_time, act_time));
 		old_time = act_time;
 	}
 	return arg;

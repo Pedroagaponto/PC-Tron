@@ -12,6 +12,4 @@ void initvar_pthread();
 
 void create_threads();
 
-void join_threads();
-
 void* judge(void *arg);

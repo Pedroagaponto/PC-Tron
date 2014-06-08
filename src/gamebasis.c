@@ -13,17 +13,24 @@ int term_row, term_col;
 
 int init_gamebasis()
 {
-	basis.status = 0;
+	basis.status = STATUS_NORMAL;
 	getmaxyx(stdscr, term_row, term_col);
 	basis.size_row = term_row - 2;
 	basis.size_col = term_col - 2;
-	if (basis.size_row*2 < basis.size_col)
-		basis.size_col = basis.size_row*2;
+	if (basis.size_row * 2 < basis.size_col)
+		basis.size_col = basis.size_row * 2;
 	else
-		basis.size_row = basis.size_col/2;
+		basis.size_row = basis.size_col / 2;
+
+
+	for (int i = 0; i < N_PLAYERS; i++)
+	{
+		basis.heads[i][0] = (basis.size_row - 2) / 2;
+		basis.heads[i][1] = ((basis.size_col - 2) / 4) * ((i * 2) + 1);
+	}
 
 	if (basis.size_row < 25)
-		basis.status = -25;
+		basis.status = STATUS_TOO_SMALL;
 	else
 		if (alloc_mats() == -1)
 			return -1;
