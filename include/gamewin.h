@@ -1,10 +1,13 @@
 void init_win();
 
-WINDOW *create_win(int win_y, int win_x, int starty, int startx);
+WINDOW *create_win(int win_y, int win_x, int start_row, int start_col);
 
 void destroy_win(WINDOW **local_win);
 
-WINDOW* warn_win(int term_y, int term_x);
+void destroy_wins();
 
-void printgame_win(WINDOW *local_win, int **mat, int row, int col);
+void createwarn_win();
 
+void createfield_win();
+
+void* refresh_game(void *arg);

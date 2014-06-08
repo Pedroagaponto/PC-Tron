@@ -5,10 +5,15 @@
 
 struct game_basis basis;
 
+sem_t can_refresh;
+
+pthread_mutex_t mutex_sts;
+
 int term_row, term_col;
 
 int init_gamebasis()
 {
+	basis.status = 0;
 	getmaxyx(stdscr, term_row, term_col);
 	basis.size_row = term_row - 2;
 	basis.size_col = term_col - 2;
@@ -20,10 +25,9 @@ int init_gamebasis()
 	if (basis.size_row < 25)
 		basis.status = -25;
 	else
-	{
 		if (alloc_mats() == -1)
 			return -1;
-	}
+
 	return 0;
 }
 
@@ -57,15 +61,19 @@ int alloc_mats()
 
 int init_matmutex()
 {
-	int i, j;
-
-	for (i = 0; i < basis.size_row; i++)
-		for (j = 0; j < basis.size_col; j++)
+	for (int i = 0; i < basis.size_row; i++)
+		for (int j = 0; j < basis.size_col; j++)
 			if (pthread_mutex_init(&basis.l_field[i][j], NULL) != 0)
 				return -1;
 	return 0;
 }
 
+void set_mat()
+{
+	for (int i = 0; i < basis.size_row; i++)
+		for (int j = 0; j < basis.size_col; j++)
+			basis.field[i][j] = 0;
+}
 void free_mats()
 {
 	int i;

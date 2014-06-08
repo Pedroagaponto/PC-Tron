@@ -4,30 +4,17 @@
 #include <time.h>
 #include <unistd.h>
 #include <semaphore.h>
-
-#define UP 'w'
-#define DOWN 's'
-#define RIGHT 'd'
-#define LEFT 'a'
-#define N_PLAYERS 2
-//#define TEST
-
-struct game_logic
-{
-	int status;
-	int **field;
-	pthread_mutex_t **l_field;
-	int size_row, size_col;
-	int heads[N_PLAYERS][2];
-};
-
-struct game_logic f_logic;
+#include "gamebasis.h"
+#include "gamewin.h"
+#include "gamelogic.h"
 
 char directions[N_PLAYERS] = {RIGHT, LEFT};
 
 sem_t can_we_play[N_PLAYERS];
 
-pthread_barrier_t barrier;
+sem_t can_continue;
+
+pthread_t threads[N_PLAYERS+2];
 
 struct key_map
 {
@@ -51,7 +38,7 @@ const struct key_map mapping[] = {
 void* worm(void *num)
 {
 	int id = (int) num;
-	int row = f_logic.heads[id][0], col = f_logic.heads[id][1];
+	int row = basis.heads[id][0], col = basis.heads[id][1];
 
 	while (1)
 	{
@@ -67,123 +54,179 @@ void* worm(void *num)
 			case LEFT:
 				col--;
 		}
-		if ((row < 0) || (col < 0 ))
+		if ((row <= 0) || (col <= 0))
 		{
-			f_logic.status = -(id);
-		} else {
-			pthread_mutex_lock(&f_logic.l_field[row][col]);
-			if (f_logic.field[row][col] == 0)
-				f_logic.field[row][col] = id;
-			else
-				f_logic.status = -(id);
-			pthread_mutex_unlock(&f_logic.l_field[row][col]);
-
-			f_logic.heads[id][0] = row;
-			f_logic.heads[id][1] = col;
+			pthread_mutex_lock(&mutex_sts);
+			basis.status = STATUS_PLAYER_LOSE(id);
+			pthread_mutex_unlock(&mutex_sts);
 		}
+		else if ((row >= basis.size_row-1) || (col >= basis.size_col-1))
+		{
+			pthread_mutex_lock(&mutex_sts);
+			basis.status = STATUS_PLAYER_LOSE(id);
+			pthread_mutex_unlock(&mutex_sts);
+		}
+		else
+		{
+			pthread_mutex_lock(&basis.l_field[row][col]);
+			if (basis.field[row][col] == 0)
+				basis.field[row][col] = id;
+			else
+			{
+				pthread_mutex_lock(&mutex_sts);
+				basis.status = STATUS_PLAYER_LOSE(id);
+				pthread_mutex_unlock(&mutex_sts);
+			}
+			pthread_mutex_unlock(&basis.l_field[row][col]);
+
+			basis.heads[id][0] = row;
+			basis.heads[id][1] = col;
+		}
+		sem_post(&can_continue);
 	}
+	return NULL;
 }
 
-void* read_key(void *param)
+void* read_key(void *arg)
 {
-	int i, c = (int) param;
+	int i, c;
 
 	while (1)
 	{
+		refresh();
 		c = getch();
 		if (c == KEY_F(1))
-			f_logic.status = -1;
-		for (i = 0; mapping[i].player; i++)
-			if (c == mapping[i].key)
-			{
-				directions[mapping[i].player - 1] =
-				mapping[i].direction;
-				break;
-			}
-		mvprintw(0, 0, "%c %c", directions[0], directions[1]);
+		{
+			pthread_mutex_lock(&mutex_sts);
+			basis.status = STATUS_EXIT;
+			pthread_mutex_unlock(&mutex_sts);
+		}
+		else if (c == KEY_RESIZE)
+		{
+			pthread_mutex_lock(&mutex_sts);
+			basis.status = STATUS_RESIZE;
+			pthread_mutex_unlock(&mutex_sts);
+		}
+		else
+			for (i = 0; mapping[i].player; i++)
+				if (c == mapping[i].key)
+				{
+					directions[mapping[i].player - 1] =
+					mapping[i].direction;
+					break;
+				}
 		refresh();
 	}
+
+	return arg;
 }
 
-/* TODO */
-int diff(struct timespec old, struct timespec act)
+int diff (struct timespec start, struct timespec end)
 {
-	return old.tv_sec+act.tv_sec-old.tv_sec-act.tv_sec;
+	struct timespec temp;
+	if ((end.tv_nsec - start.tv_nsec) < 0)
+	{
+		temp.tv_sec = end.tv_sec - start.tv_sec - 1;
+		temp.tv_nsec = 1e9 + end.tv_nsec - start.tv_nsec;
+	}
+	else
+	{
+		temp.tv_sec = end.tv_sec - start.tv_sec;
+		temp.tv_nsec = end.tv_nsec - start.tv_nsec;
+	}
+
+	return spec_to_usec(temp);
+}
+
+int spec_to_usec(struct timespec time)
+{
+	int temp;
+
+	/* Nano to micro */
+	temp = time.tv_nsec / 1e3;
+	temp += time.tv_sec * 1e6;
+
+	return temp;
 }
 
 void check_draw()
 {
 	int i, j;
 
-	for (i = 0; i < N_PLAYERS-1; i++)
-		for (j = 1; j < N_PLAYERS; j++)
+	for (i = 0; i < N_PLAYERS; i++)
+		for (j = 0; j < N_PLAYERS; j++)
 			if ((i != j) &&
-			   (f_logic.heads[i][0] == f_logic.heads[j][0]) &&
-			   (f_logic.heads[i][1] == f_logic.heads[j][0]))
-				f_logic.status = -3;
+			   (basis.heads[i][0] == basis.heads[j][0]) &&
+			   (basis.heads[i][1] == basis.heads[j][0]))
+			{
+				pthread_mutex_lock(&mutex_sts);
+				basis.status = STATUS_DRAW;
+				pthread_mutex_unlock(&mutex_sts);
+			}
 }
-void create_threads(pthread_t **threads)
+
+void initvar_pthread()
+{
+	for (int i = 0; i < N_PLAYERS; i++)
+		sem_init(&can_we_play[i], 1, 0);
+	sem_init(&can_refresh, 1, 0);
+	sem_init(&can_continue, 1, 0);
+	pthread_mutex_init(&mutex_sts, NULL);
+}
+
+void create_threads()
 {
 	int i;
 
-	*threads = (pthread_t*) calloc(N_PLAYERS+1, sizeof(pthread_t));
-	pthread_barrier_init(&barrier, NULL, N_PLAYERS);
-	for (i = 0; i < N_PLAYERS; i++)
-		sem_init(&can_we_play[i], 1, 0);
-
 	for (i = 0; i < N_PLAYERS; i++)
 	{
-		if (pthread_create(threads[i], NULL, worm, (void *) i))
+		if (pthread_create(&threads[i], NULL, &worm, (void *) i))
 		{
 			fprintf(stderr, "Cannot create thread worm %d\n", i);
 			exit(-1);
 		}
 	}
-	if (pthread_create(threads[i], NULL, read_key, NULL))
+	if (pthread_create(&threads[i], NULL, &read_key, NULL))
 	{
 		fprintf(stderr, "Cannot create thread read_key\n");
 		exit(-1);
 	}
+	if (pthread_create(&threads[i+1], NULL, &refresh_game, NULL))
+	{
+		fprintf(stderr, "Cannot create thread refresh_game\n");
+		exit(-1);
+	}
 }
 
-void judge()
+void join_threads()
+{
+	for (int i = 0; i < N_PLAYERS+2; i++)
+		pthread_join(threads[i], NULL);
+}
+
+void* judge(void *arg)
 {
 	int i;
 	struct timespec old_time, act_time;
-	pthread_t *threads = NULL;
 
 	clock_gettime(CLOCK_MONOTONIC, &old_time);
-	create_threads(&threads);
+	initvar_pthread();
+	create_threads();
+	join_threads();
 
 	while(1)
 	{
-		//checks mutex before execution (window's ready)
-
 		for (i = 0; i < N_PLAYERS; i++)
 			sem_post(&can_we_play[i]);
 
-		pthread_barrier_wait(&barrier);
 		check_draw();
-
-		//asks the interface to update
-
+		for (i = 0; i < N_PLAYERS; i++)
+			sem_wait(&can_continue);
+		sem_post(&can_refresh);
+		refresh();
 		clock_gettime(CLOCK_MONOTONIC, &act_time);
 		usleep(1000 - diff(old_time, act_time));
 		old_time = act_time;
 	}
+	return arg;
 }
-
-#ifdef TEST
-int main()
-{
-	initscr();
-	noecho();
-	cbreak();
-	keypad(stdscr, TRUE);
-	read_key();
-
-	endwin();
-
-	return 0;
-}
-#endif /* TEST */
