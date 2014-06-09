@@ -74,12 +74,27 @@ void createwarn_win()
 
 void createwin_win(int winner)
 {
-	adv = create_win(4, 34, (term_row-4)/2, (term_col-34)/2);
+	adv = create_win(4, 32, (term_row-4)/2, (term_col-26)/2);
 
 	if (adv != NULL)
 	{
-		mvwprintw(adv, 1, 5, "WORM %d WINS!", winner);
-		mvwprintw(adv, 3, 0, "Press any key to exit");
+		if (winner == DRAW)
+			mvwprintw(adv, 1, 14, "DRAW!");
+		else
+			mvwprintw(adv, 1, 11, "WORM %d WINS!", (winner%2)+1);
+		mvwprintw(adv, 2, 6, "Press any key to exit");
+		wrefresh(adv);
+	}
+}
+
+void createpause_win()
+{
+	adv = create_win(4, 32, (term_row-4)/2, (term_col-32)/2);
+
+	if (adv != NULL)
+	{
+		mvwprintw(adv, 1, 9, "GAME IS PAUSED!");
+		mvwprintw(adv, 2, 1, "Press p <unpause> or F1 <quit>");
 		wrefresh(adv);
 	}
 }
@@ -192,30 +207,33 @@ doesn't */
 		sem_post(&screen_ready);
 		sem_wait(&can_refresh);
 		pthread_mutex_lock(&mutex_sts);
-		//TODO switch
-		if (basis.status == STATUS_NORMAL)
+		switch (basis.status)
 		{
-			pthread_mutex_unlock(&mutex_sts);
-			refresh_allfield();
+			case (STATUS_NORMAL):
+				pthread_mutex_unlock(&mutex_sts);
+				refresh_allfield();
+				break;
+			case (STATUS_RESIZE):
+				pthread_mutex_unlock(&mutex_sts);
+				refresh_resize();
+				break;
+			case (STATUS_PAUSE):
+				if (adv != NULL)
+					destroy_win(&adv);
+				pthread_mutex_unlock(&mutex_sts);
+				createpause_win();
+				break;
+			case (STATUS_EXIT):
+				pthread_mutex_unlock(&mutex_sts);
+				refresh_exit();
+			case (STATUS_GAME_OVER):
+				pthread_mutex_unlock(&mutex_sts);
+				createwin_win(basis.losers);
+				getch();
+				refresh_exit();
+			default:
+				pthread_mutex_unlock(&mutex_sts);
 		}
-		else if (basis.status == STATUS_RESIZE)
-		{
-			pthread_mutex_unlock(&mutex_sts);
-			refresh_resize();
-		}
-		else if (basis.status == STATUS_EXIT)
-		{
-			pthread_mutex_unlock(&mutex_sts);
-			refresh_exit();
-		}
-		else if (basis.status == STATUS_GAME_OVER)
-		{
-			pthread_mutex_unlock(&mutex_sts);
-			createwin_win(basis.losers);
-			refresh_exit();
-		}
-		else
-			pthread_mutex_unlock(&mutex_sts);
 		refresh();
 	}
 

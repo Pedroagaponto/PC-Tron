@@ -10,6 +10,8 @@ void createwarn_win();
 
 void createwin_win(int winner);
 
+void createpause_win();
+
 void createfield_win();
 
 void refresh_resize();

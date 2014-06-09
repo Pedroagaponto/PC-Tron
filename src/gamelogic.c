@@ -44,9 +44,11 @@ void* worm(void *num)
 	while (1)
 	{
 		sem_wait(&can_we_play[id]);
-		if (basis.status != STATUS_NORMAL)
+		if (basis.status == STATUS_PAUSE)
+		{
+			sem_post(&can_continue);
 			continue;
-		
+		}
 		move = directions[id];
 		move = (move == -old_move) ? old_move : move;
 		old_move = move;
@@ -70,7 +72,7 @@ void* worm(void *num)
 		{
 			pthread_mutex_lock(&mutex_sts);
 			basis.status = STATUS_GAME_OVER;
-			basis.losers = id+1;
+			basis.losers = (!basis.losers)? id+1 : DRAW;
 			pthread_mutex_unlock(&mutex_sts);
 		}
 		else
@@ -99,31 +101,50 @@ void* worm(void *num)
 
 void* read_key(void *arg)
 {
-	int i, c;
+	int i, c, paused = 0;
 
 	while (1)
 	{
 		c = getch();
-		if (c == KEY_F(1))
+		if ((paused > 0) && (c != PAUSED) && (c != KEY_F(1)))
+			continue;
+		switch(c)
 		{
-			pthread_mutex_lock(&mutex_sts);
-			basis.status = STATUS_EXIT;
-			pthread_mutex_unlock(&mutex_sts);
-		}
-		else if (c == KEY_RESIZE)
-		{
-			pthread_mutex_lock(&mutex_sts);
-			basis.status = STATUS_RESIZE;
-			pthread_mutex_unlock(&mutex_sts);
-		}
-		else
-			for (i = 0; mapping[i].player; i++)
-				if (c == mapping[i].key)
+			case (KEY_F(1)):
+				pthread_mutex_lock(&mutex_sts);
+				basis.status = STATUS_EXIT;
+				pthread_mutex_unlock(&mutex_sts);
+				break;
+			case (KEY_RESIZE):
+				pthread_mutex_lock(&mutex_sts);
+				basis.status = STATUS_RESIZE;
+				pthread_mutex_unlock(&mutex_sts);
+				break;
+			case (PAUSED):
+				paused++;
+				if (paused == 1)
 				{
-					directions[mapping[i].player - 1] =
-					mapping[i].direction;
-					break;
+					pthread_mutex_lock(&mutex_sts);
+					basis.status = STATUS_PAUSE;
+					pthread_mutex_unlock(&mutex_sts);
 				}
+				else
+				{
+					paused = 0;
+					pthread_mutex_lock(&mutex_sts);
+					basis.status = STATUS_NORMAL;
+					pthread_mutex_unlock(&mutex_sts);
+				}
+
+			default:
+				for (i = 0; mapping[i].player; i++)
+					if (c == mapping[i].key)
+					{
+						directions[mapping[i].player-1]=
+						mapping[i].direction;
+					}
+				break;
+		}
 	}
 
 	return arg;
@@ -146,7 +167,7 @@ int diff (struct timespec start, struct timespec end)
 	}
 
 	ret = spec_to_usec(temp);
-	
+
 	return (ret > REFRESH_US) ? REFRESH_US : ret;
 }
 
@@ -216,9 +237,7 @@ void create_threads()
 void* judge(void *arg)
 {
 	int i;
-	struct timespec old_time, act_time;
 
-	clock_gettime(CLOCK_MONOTONIC, &old_time);
 	initvar_pthread();
 	create_threads();
 
@@ -233,10 +252,8 @@ void* judge(void *arg)
 
 		check_draw();
 		sem_post(&can_refresh);
-		clock_gettime(CLOCK_MONOTONIC, &act_time);
-		usleep(REFRESH_US - diff(old_time, act_time));
+		usleep(REFRESH_US);
 		sem_post(&can_refresh);
-		old_time = act_time;
 	}
 	return arg;
 }

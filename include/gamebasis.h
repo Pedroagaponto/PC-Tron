@@ -6,9 +6,11 @@
 #define RIGHT 2
 #define LEFT -2
 #define N_PLAYERS 2
-#define REFRESH_US 1000000
+#define PAUSED 'p'
+#define REFRESH_US 100000
 #define STATUS_RESIZE -10
 #define STATUS_ADV -11
+#define STATUS_PAUSE 30
 #define STATUS_SHORT_MSG -12
 #define STATUS_NORMAL 0
 #define STATUS_GAME_OVER -1
