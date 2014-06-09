@@ -9,6 +9,7 @@
 #define PAUSED 'p'
 #define REFRESH_US 100000
 #define STATUS_RESIZE -10
+#define STATUS_END_MATCH -40
 #define STATUS_ADV -11
 #define STATUS_PAUSE 30
 #define STATUS_SHORT_MSG -12

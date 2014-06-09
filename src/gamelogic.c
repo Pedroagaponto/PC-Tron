@@ -44,7 +44,8 @@ void* worm(void *num)
 	while (1)
 	{
 		sem_wait(&can_we_play[id]);
-		if (basis.status == STATUS_PAUSE)
+		if ((basis.status == STATUS_PAUSE) ||
+		   (basis.status == STATUS_END_MATCH))
 		{
 			sem_post(&can_continue);
 			continue;

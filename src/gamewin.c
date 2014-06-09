@@ -82,6 +82,9 @@ void createwin_win(int winner)
 		mvwprintw(adv, 2, 6, "Press any key to exit");
 		wrefresh(adv);
 	}
+	pthread_mutex_lock(&mutex_sts);
+	basis.status = STATUS_END_MATCH;
+	pthread_mutex_unlock(&mutex_sts);
 }
 
 void createpause_win()
