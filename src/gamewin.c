@@ -15,9 +15,6 @@ void init_win()
 	initscr();
 	cbreak();
 	start_color();
-	init_pair(0, COLOR_WHITE, COLOR_BLACK);
-	init_pair(1, COLOR_WHITE, COLOR_CYAN);
-	init_pair(2, COLOR_WHITE, COLOR_GREEN);
 	noecho();
 	curs_set(0);
 	keypad(stdscr, TRUE);
@@ -152,11 +149,11 @@ void refresh_move()
 	pthread_mutex_lock(&basis.l_heads);
 	for (int i = 0; i < N_PLAYERS; i++)
 	{
-		attron(COLOR_PAIR(i+1));
+		wattron(game_field, COLOR_PAIR(i+1));
 		mvwprintw(game_field, old_heads[i][0], old_heads[i][1], "o");
 		mvwprintw(game_field, basis.heads[i][0], basis.heads[i][1],"O");
-		attroff(COLOR_PAIR(i+1));
 	}
+	wattron(game_field, COLOR_PAIR(0));
 	refresh_oldheads();
 	pthread_mutex_unlock(&basis.l_heads);
 	wrefresh(game_field);
@@ -198,6 +195,8 @@ void* refresh_game(void *arg)
 
 	createfield_win();
 	refresh_oldheads();
+	init_pair(1, COLOR_WHITE, COLOR_RED);
+	init_pair(2, COLOR_WHITE, COLOR_BLUE);
 
 	/* Identifies possible changes on the terminal's dimension,
 adapting the game field when is possible or sending warnings when it
@@ -211,7 +210,7 @@ doesn't */
 		{
 			case (STATUS_NORMAL):
 				pthread_mutex_unlock(&mutex_sts);
-				refresh_allfield();
+				refresh_move();
 				break;
 			case (STATUS_RESIZE):
 				pthread_mutex_unlock(&mutex_sts);
