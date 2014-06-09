@@ -71,7 +71,7 @@ void createwarn_win()
 
 void createwin_win(int winner)
 {
-	adv = create_win(4, 32, (term_row-4)/2, (term_col-26)/2);
+	adv = create_win(4, 32, (term_row-4)/2, (term_col-32)/2);
 
 	if (adv != NULL)
 	{
@@ -79,7 +79,7 @@ void createwin_win(int winner)
 			mvwprintw(adv, 1, 14, "DRAW!");
 		else
 			mvwprintw(adv, 1, 11, "WORM %d WINS!", (winner%2)+1);
-		mvwprintw(adv, 2, 6, "Press any key to exit");
+		mvwprintw(adv, 2, 1, "Press r <restart> or F1 <quit>");
 		wrefresh(adv);
 	}
 	pthread_mutex_lock(&mutex_sts);
@@ -149,6 +149,8 @@ void refresh_exit()
 
 void refresh_move()
 {
+	wattron(game_field, COLOR_PAIR(3));
+	box(game_field, 0 , 0);
 	pthread_mutex_lock(&basis.l_heads);
 	for (int i = 0; i < N_PLAYERS; i++)
 	{
@@ -156,7 +158,9 @@ void refresh_move()
 		mvwprintw(game_field, old_heads[i][0], old_heads[i][1], "o");
 		mvwprintw(game_field, basis.heads[i][0], basis.heads[i][1],"O");
 	}
-	wattron(game_field, COLOR_PAIR(0));
+	wattroff(game_field, COLOR_PAIR(1));
+	wattroff(game_field, COLOR_PAIR(2));
+	wattroff(game_field, COLOR_PAIR(3));
 	refresh_oldheads();
 	pthread_mutex_unlock(&basis.l_heads);
 	wrefresh(game_field);
@@ -164,21 +168,33 @@ void refresh_move()
 
 void refresh_allfield()
 {
+	wattron(game_field, COLOR_PAIR(3));
+	box(game_field, 0 , 0);
 	werase(game_field);
 	for (int i = 0; i < basis.size_row; i++)
 		for (int j = 0; j < basis.size_col; j++)
 		{
 			pthread_mutex_lock(&basis.l_field[i][j]);
 			if (basis.field[i][j] != 0)
-				mvwprintw(game_field, i, j, "o"); 
+			{
+				if (basis.field[i][j] == 1)
+					wattron(game_field, COLOR_PAIR(1));
+				else if (basis.field[i][j] == 2)
+					wattron(game_field, COLOR_PAIR(2));
+				mvwprintw(game_field, i, j, "o");
+			}
 			pthread_mutex_unlock(&basis.l_field[i][j]);
 
 		}
 	pthread_mutex_lock(&basis.l_heads);
+	wattron(game_field, COLOR_PAIR(1));
 	mvwprintw(game_field, basis.heads[0][0], basis.heads[0][1],"O");
+	wattron(game_field, COLOR_PAIR(2));
 	mvwprintw(game_field, basis.heads[1][0], basis.heads[1][1],"O");
 	pthread_mutex_unlock(&basis.l_heads);
-	box(game_field, 0 , 0);
+	wattroff(game_field, COLOR_PAIR(1));
+	wattroff(game_field, COLOR_PAIR(2));
+	wattroff(game_field, COLOR_PAIR(3));
 	wrefresh(game_field);
 }
 
@@ -200,6 +216,7 @@ void* refresh_game(void *arg)
 	refresh_oldheads();
 	init_pair(1, COLOR_WHITE, COLOR_RED);
 	init_pair(2, COLOR_WHITE, COLOR_BLUE);
+	init_pair(3, COLOR_BLACK, COLOR_WHITE);
 
 	/* Identifies possible changes on the terminal's dimension,
 adapting the game field when is possible or sending warnings when it
@@ -212,6 +229,11 @@ doesn't */
 		switch (basis.status)
 		{
 			case (STATUS_NORMAL):
+				if (adv != NULL)
+				{
+					destroy_win(&adv);
+					refresh_allfield();
+				}
 				pthread_mutex_unlock(&mutex_sts);
 				refresh_move();
 				break;
@@ -231,8 +253,6 @@ doesn't */
 			case (STATUS_GAME_OVER):
 				pthread_mutex_unlock(&mutex_sts);
 				createwin_win(basis.losers);
-				getch();
-				refresh_exit();
 			default:
 				pthread_mutex_unlock(&mutex_sts);
 		}

@@ -7,6 +7,7 @@
 #define LEFT -2
 #define N_PLAYERS 2
 #define PAUSED 'p'
+#define RESTART 'r'
 #define REFRESH_US 100000
 #define STATUS_RESIZE -10
 #define STATUS_END_MATCH -40

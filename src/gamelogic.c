@@ -109,15 +109,21 @@ void* read_key(void *arg)
 		c = getch();
 		if ((paused > 0) && (c != PAUSED) && (c != KEY_F(1)))
 			continue;
+		
+		pthread_mutex_lock(&mutex_sts);
+		if ((basis.status == STATUS_END_MATCH) &&
+		   (c != KEY_F(1)) && (c != RESTART))
+		{
+			pthread_mutex_unlock(&mutex_sts);
+			continue;
+		}
 		switch(c)
 		{
 			case (KEY_F(1)):
-				pthread_mutex_lock(&mutex_sts);
 				basis.status = STATUS_EXIT;
 				pthread_mutex_unlock(&mutex_sts);
 				break;
 			case (KEY_RESIZE):
-				pthread_mutex_lock(&mutex_sts);
 				basis.status = STATUS_RESIZE;
 				pthread_mutex_unlock(&mutex_sts);
 				break;
@@ -125,19 +131,18 @@ void* read_key(void *arg)
 				paused++;
 				if (paused == 1)
 				{
-					pthread_mutex_lock(&mutex_sts);
 					basis.status = STATUS_PAUSE;
 					pthread_mutex_unlock(&mutex_sts);
 				}
 				else
 				{
 					paused = 0;
-					pthread_mutex_lock(&mutex_sts);
 					basis.status = STATUS_NORMAL;
 					pthread_mutex_unlock(&mutex_sts);
 				}
 
 			default:
+				pthread_mutex_unlock(&mutex_sts);
 				for (i = 0; mapping[i].player; i++)
 					if (c == mapping[i].key)
 					{
