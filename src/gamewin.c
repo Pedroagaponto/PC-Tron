@@ -69,22 +69,20 @@ void createwarn_win()
 	}
 }
 
-void createwin_win(int winner)
+void createwin_win(int losers)
 {
 	adv = create_win(4, 32, (term_row-4)/2, (term_col-32)/2);
 
+	basis.status = STATUS_END_MATCH;
 	if (adv != NULL)
 	{
-		if (winner == DRAW)
+		if (losers == DRAW)
 			mvwprintw(adv, 1, 14, "DRAW!");
 		else
-			mvwprintw(adv, 1, 11, "WORM %d WINS!", (winner%2)+1);
-		mvwprintw(adv, 2, 1, "Press r <restart> or F1 <quit>");
+			mvwprintw(adv, 1, 11, "WORM %d WINS!", (losers%2)+1);
+		mvwprintw(adv, 2, 9, "Press F1 to exit");
 		wrefresh(adv);
 	}
-	pthread_mutex_lock(&mutex_sts);
-	basis.status = STATUS_END_MATCH;
-	pthread_mutex_unlock(&mutex_sts);
 }
 
 void createpause_win()
@@ -144,7 +142,6 @@ void refresh_exit()
 	free_mats();
 	endwin();
 	exit(1);
-
 }
 
 void refresh_move()
@@ -247,12 +244,10 @@ doesn't */
 				pthread_mutex_unlock(&mutex_sts);
 				createpause_win();
 				break;
-			case (STATUS_EXIT):
-				pthread_mutex_unlock(&mutex_sts);
-				refresh_exit();
 			case (STATUS_GAME_OVER):
-				pthread_mutex_unlock(&mutex_sts);
 				createwin_win(basis.losers);
+				pthread_mutex_unlock(&mutex_sts);
+				break;
 			default:
 				pthread_mutex_unlock(&mutex_sts);
 		}

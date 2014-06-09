@@ -109,7 +109,7 @@ void* read_key(void *arg)
 		c = getch();
 		if ((paused > 0) && (c != PAUSED) && (c != KEY_F(1)))
 			continue;
-		
+
 		pthread_mutex_lock(&mutex_sts);
 		if ((basis.status == STATUS_END_MATCH) &&
 		   (c != KEY_F(1)) && (c != RESTART))
@@ -120,7 +120,7 @@ void* read_key(void *arg)
 		switch(c)
 		{
 			case (KEY_F(1)):
-				basis.status = STATUS_EXIT;
+				refresh_exit();
 				pthread_mutex_unlock(&mutex_sts);
 				break;
 			case (KEY_RESIZE):
@@ -140,7 +140,7 @@ void* read_key(void *arg)
 					basis.status = STATUS_NORMAL;
 					pthread_mutex_unlock(&mutex_sts);
 				}
-
+				break;
 			default:
 				pthread_mutex_unlock(&mutex_sts);
 				for (i = 0; mapping[i].player; i++)
@@ -193,7 +193,7 @@ void check_draw()
 	int i, j;
 
 	for (i = 0; i < N_PLAYERS; i++)
-		for (j = i + 1; j < N_PLAYERS; j++)
+		for (j = 1; j < N_PLAYERS; j++)
 			if ((i != j) &&
 			   (basis.heads[i][0] == basis.heads[j][0]) &&
 			   (basis.heads[i][1] == basis.heads[j][1]))

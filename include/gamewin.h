@@ -8,7 +8,7 @@ void destroy_wins();
 
 void createwarn_win();
 
-void createwin_win(int winner);
+void createwin_win(int losers);
 
 void createpause_win();
 
