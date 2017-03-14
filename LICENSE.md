@@ -1,6 +1,6 @@
 The MIT License (MIT)
 
-Copyright (c) {{{year}}} {{{fullname}}}
+Copyright (c) 2014 Aurora Li Min de Freitas Wang and Pedro Henrique Morais Pereira
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
